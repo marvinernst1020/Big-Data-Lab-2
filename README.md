@@ -12,7 +12,7 @@ We explore three different document modeling approaches:
 - **Model 2 (Person-embedded):** Company information embedded within each person document.
 - **Model 3 (Company-embedded):** Persons embedded as a list within each company document.
 
-##Folder Contents
+## Folder Contents
 
 - `model1.py`, `model2.py`, `model3.py`: Core scripts implementing each model with data generation and queries.
 - `run_all.py`: Main script to generate data and execute all queries for all models. It supports a user input for document count and can optionally suppress detailed output.
