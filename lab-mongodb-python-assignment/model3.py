@@ -1,3 +1,35 @@
+"""
+model3.py
+
+This script defines the class `Model3` for a fully embedded MongoDB data model,
+where each document in the `m3_companies` collection represents a company,
+and includes an embedded list of persons (employees).
+
+The class contains the following components:
+
+1. data_generator(n, only_timing=False)
+   - Generates `n` documents in total, distributed between companies and embedded persons.
+   - Each company document includes a list of embedded person documents.
+   - Uses round-robin distribution to evenly assign persons to companies.
+   - Optional `only_timing` flag suppresses print output.
+
+2. query_q1(only_timing=False)
+   - Unwinds the embedded `persons` array and projects each person's full name with their company’s name.
+
+3. query_q2(only_timing=False)
+   - Projects each company's name and the number of embedded employees using `$size`.
+
+4. query_q3(only_timing=False)
+   - Updates the age to 30 for all embedded persons born before 1988.
+   - Uses array filters and the positional `$[elem]` syntax.
+
+5. query_q4(only_timing=False)
+   - Appends " Company" to the name of companies that don’t already contain the word.
+   - Uses aggregation pipeline-style `update_many`.
+
+All queries report execution times. If `only_timing=True`, only timing summaries are printed.
+"""
+
 # coding=utf-8
 import datetime
 import time
@@ -8,7 +40,7 @@ from faker import Faker
 # M3: One document for “Company” with “Person” as embedded documents.
 
 class Model3:
-	def data_generator(self, n):
+	def data_generator(self, n, only_timing=False):
 		# Connect to MongoDB
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
@@ -17,7 +49,7 @@ class Model3:
 		# Reference to the collection:
 		companies = db["m3_companies"]
 		# We again use the same faker:
-		fake = Faker(['en_US'])
+		fake = Faker(['en_US', 'it_IT'])
 		# we keep the same number of companies and people as in M1 and M2:
 		n_companies = int(n // 500)
 		n_persons = n - n_companies
@@ -51,7 +83,8 @@ class Model3:
             }
 			# Insert the document into the collection:
 			companies.insert_one(company)
-			print(f"{i + 1} companies inserted with {persons_per_company} persons")
+			if not only_timing:
+				print(f"{i + 1} companies inserted with {persons_per_company} persons")
 
 		# Close the MongoDB connection:
 		client.close()
@@ -60,7 +93,7 @@ class Model3:
 	# QUERY 1
 	# For each person, retrieve their full name and their company’s name.
 
-	def query_q1(self):
+	def query_q1(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 		companies = db["m3_companies"]
@@ -84,8 +117,10 @@ class Model3:
 		query_time = time.time() - start_time
 		# Again, we don't print all results:
 		results = list(results)  
-		for result in results[:10]: 
-			print(result)
+
+		if not only_timing:
+			for result in results[:10]: 
+				print(result)
 		# Print the query execution time and reult:
 		print(f"--- Q1 execution time: {query_time:.4f} seconds ---")
 
@@ -96,7 +131,7 @@ class Model3:
 	# QUERY 2
 	# For each company, retrieve its name and the number of employees.
 
-	def query_q2(self):
+	def query_q2(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 		companies = db["m3_companies"]
@@ -116,8 +151,10 @@ class Model3:
 		# Measure query execution time:
 		query_time = time.time() - start_time
 		results = list(results)  
-		for result in results[:10]: 
-			print(result)
+
+		if not only_timing:
+			for result in results[:10]: 
+				print(result)
 		print(f"--- Q2 execution time: {query_time:.4f} seconds ---")
 
 		# Close the MongoDB connection:
@@ -127,7 +164,7 @@ class Model3:
 	# QUERY 3
 	# For each person born before 1988, update their age to “30”.
 
-	def query_q3(self):
+	def query_q3(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 		companies = db["m3_companies"]
@@ -147,7 +184,9 @@ class Model3:
 
 		# Measure query execution time:
 		query_time = time.time() - start_time
-		print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
+
+		if not only_timing:
+			print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
 		print(f"--- Q3 execution time: {query_time:.4f} seconds ---")
 
 		# Close the MongoDB connection:
@@ -157,7 +196,7 @@ class Model3:
 	# QUERY 4
 	# For each company, update its name to include the word “Company”.
 
-	def query_q4(self):
+	def query_q4(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 	
@@ -174,7 +213,9 @@ class Model3:
 		)
 		# Measure query execution time:
 		query_time = time.time() - start_time
-		print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
+
+		if not only_timing:
+			print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
 		print(f"--- Q4 execution time: {query_time:.4f} seconds ---")
 
 		# Close the MongoDB connection:

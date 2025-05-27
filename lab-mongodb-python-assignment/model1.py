@@ -1,3 +1,32 @@
+"""
+model1.py
+
+This script defines the class `Model1` for MongoDB data modeling using a normalized approach
+with two collections: `m1_persons` and `m1_companies`.
+
+It contains the following components:
+1. data_generator(n, only_timing=False)
+   - Generates `n` documents in total, split between persons and companies.
+   - Persons reference companies by storing the company’s ObjectId.
+   - Optionally suppresses console output when only_timing=True.
+
+2. query_q1(only_timing=False)
+   - Retrieves each person’s full name and their company’s name using a $lookup.
+
+3. query_q2(only_timing=False)
+   - Counts how many employees each company has.
+   - Uses a reverse $lookup to ensure companies with 0 employees are included.
+
+4. query_q3(only_timing=False)
+   - Updates the age to 30 for persons born before 1988.
+
+5. query_q4(only_timing=False)
+   - Appends " Company" to company names that don’t already include it.
+   - Uses an aggregation pipeline inside update_many.
+
+All queries print execution times. If only_timing=True, document-level output is suppressed.
+"""
+
 # coding=utf-8
 import datetime
 import time
@@ -8,7 +37,7 @@ from faker import Faker
 # M1: Two types of documents, one for each class and referenced fields.
 
 class Model1:
-	def data_generator(self, n):
+	def data_generator(self, n, only_timing=False):
 		# Connect to MongoDB
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
@@ -19,10 +48,14 @@ class Model1:
 		persons = db.create_collection("m1_persons")
 		companies = db.create_collection("m1_companies")
 		# Generate fake names, companies, adresses etc.
-		# We are using only the US, so it is clean and comparable
-		fake = Faker(['en_US'])
+		# We first wanted to be using only the US, 
+		# so it is clean and comparable, however, 
+		# the US Faker does not support VAT numbers,
+		# so we added the Italian Faker, which does support VAT numbers.
+		fake = Faker(['en_US', 'it_IT'])
 		# COMPANIES
 		# we will generate the following number of companies:
+		# (doing this, n must be at least 500)
 		n_companies = int(n // 500)
 		# we need a list to to store the ObjectIds returned from MogoDB when inserting companies:
 		company_ids = []
@@ -30,7 +63,7 @@ class Model1:
 		for _ in range(n_companies):
 			# We generate a company with all the attributes from the UML:
 			company = {
-				"domain": fake.domain(), 
+				"domain": fake.domain_name(), 
 				"email": fake.email(), 
 				"name": fake.company(), 
 				"url": fake.url(),
@@ -61,7 +94,8 @@ class Model1:
 			person["company"] = company_ids[i % n_companies]
 			# Insert the person into the collection:
 			persons.insert_one(person)
-			print(str(i + 1 + n_companies) + ". Document inserted")
+			if not only_timing:
+				print(str(i + 1 + n_companies) + ". Document inserted")
 			
 		# Close the MongoDB connection:
 		client.close()
@@ -70,7 +104,7 @@ class Model1:
 	# QUERY 1
 	# For each person, retrieve their full name and their company’s name.
 
-	def query_q1(self):
+	def query_q1(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 		persons = db["m1_persons"]
@@ -110,8 +144,9 @@ class Model1:
 		# print("--- %s seconds ---" % (query_time) + str(result))
 		# we can limit the output to the first 10 documents:
 		results = list(results)  
-		for result in results[:10]: 
-			print(result)
+		if not only_timing:
+			for result in results[:10]: 
+				print(result)
 		# Print the query execution time and reult:
 		print(f"--- Q1 execution time: {query_time:.4f} seconds ---")
 
@@ -122,7 +157,10 @@ class Model1:
 	# QUERY 2
 	# For each company, retrieve its name and the number of employees.
 
-	def query_q2a(self):
+	# Here is a verison, which works when all companies have at least one employee,
+	# which is the case, but we wnated to show, how we can make it more robust:
+	"""
+	def query_q2(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 	
@@ -134,7 +172,7 @@ class Model1:
 		results = persons.aggregate([
 			{
 				# group by company and count the number of employees:
-				"$group:": {
+				"$group": {
 					"_id": "$company",
 					"employees": {
 						"$sum": 1
@@ -168,18 +206,20 @@ class Model1:
 		query_time = time.time() - start_time
 		# results:
 		results = list(results)  
-		for result in results[:10]: 
-			print(result)
+		if not only_timing:
+			for result in results[:10]: 
+				print(result)
 		# Print the query execution time and reult:
-		print(f"--- Q2a execution time: {query_time:.4f} seconds ---")
+		print(f"--- Q2 execution time: {query_time:.4f} seconds ---")
 
 		# Close the MongoDB connection:
 		client.close()
 		return
-
-	# We aklso present a second (improved) solution:
+	"""
+	# We also present a second (improved) solution:
 	# This approach also covers the case that compamnies with 0 employees are returned.
-	def query_q2b(self):
+	
+	def query_q2(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 	
@@ -210,10 +250,11 @@ class Model1:
 		query_time = time.time() - start_time
 		# results:
 		results = list(results)
-		for result in results[:10]: 
-			print(result)
+		if not only_timing:
+			for result in results[:10]: 
+				print(result)
 		# Print the query execution time and reult:			
-		print(f"--- Q2b execution time: {query_time:.4f} seconds ---")
+		print(f"--- Q2 execution time: {query_time:.4f} seconds ---")
 		# Close the MongoDB connection:
 		client.close()
 		return
@@ -221,24 +262,25 @@ class Model1:
 	# QUERY 3
 	# For each person born before 1988, update their age to “30”.
 
-	def query_q3(self):
+	def query_q3(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 		persons = db["m1_persons"]
 		# Get time at the start of the query:
 		start_time = time.time()
 
-		results = persons.updateMany(
+		results = persons.update_many(
 			# we use the less than operator, so we update the age with "$set" 
 			# for all persons that are born before 1988-01-01:
-			{ "$dateOfBirth": {"$lt": "1988-01-01" } },
+			{ "dateOfBirth": {"$lt": "1988-01-01" } },
 			{ "$set": { "age": 30 } }
 		)
 		# Measure query execution time: 
 		query_time = time.time() - start_time
 
 		# we show how many documents have been modfied:
-		print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
+		if not only_timing:
+			print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
 		print(f"--- Q3 execution time: {query_time:.4f} seconds ---")
 		
 		client.close()
@@ -247,7 +289,7 @@ class Model1:
 	# QUERY 4
 	# For each company, update its name to include the word “Company”.
 
-	def query_q4(self):
+	def query_q4(self, only_timing=False):
 		client = MongoClient("mongodb://localhost:27017/")
 		db = client["test"]
 	
@@ -274,7 +316,8 @@ class Model1:
 		query_time = time.time() - start_time
 
 		# we show how many documents have been modfied:
-		print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
+		if not only_timing:
+			print(f"Matched {results.matched_count} documents, Modified {results.modified_count} documents.")
 		print(f"--- Q4 execution time: {query_time:.4f} seconds ---")
 		
 		client.close()
